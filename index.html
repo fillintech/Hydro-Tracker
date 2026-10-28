@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>HydroTracker</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+      --accent: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+      overflow-x: hidden;
+    }
+    header { width: 100%; max-width: 400px; text-align: center; margin-bottom: 12px; }
+    h1 { font-size: 1.5rem; color: #38bdf8; }
+    .stats { display: flex; justify-content: space-between; width: 100%; max-width: 400px; background: var(--card-bg); padding: 12px; border-radius: 12px; margin-bottom: 16px; }
+    .stat-box { text-align: center; }
+    .stat-val { font-size: 1.2rem; font-weight: bold; }
+    .stat-lbl { font-size: 0.75rem; color: var(--text-dim); }
+    .bottle-wrapper { position: relative; width: 160px; height: 320px; margin: 10px 0; }
+    .bottle {
+      position: absolute; width: 100%; height: 100%;
+      border: 4px solid #38bdf8; border-radius: 20px 20px 40px 40px;
+      overflow: hidden; background: rgba(255,255,255,0.05);
+    }
+    .cap {
+      position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+      width: 50px; height: 16px; background: #38bdf8; border-radius: 4px 4px 0 0;
+    }
+    .marks { position: absolute; right: 8px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 20px 0; color: rgba(255,255,255,0.4); font-size: 10px; font-weight: bold; }
+    .liquid-container { position: absolute; bottom: 0; width: 100%; height: 0%; transition: height 0.5s ease-out; display: flex; flex-direction: column-reverse; }
+    .liquid-layer { width: 100%; transition: height 0.5s ease-out; }
+    .controls { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 10px; }
+    .main-btn {
+      width: 100%; padding: 18px; background: #0284c7; color: white; border: none;
+      border-radius: 16px; font-size: 1.1rem; font-weight: bold; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4); transition: transform 0.1s;
+    }
+    .main-btn:active { transform: scale(0.97); }
+    .menu {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      z-index: 100; justify-content: center; align-items: center; padding: 20px;
+    }
+    .menu.open { display: flex; }
+    .menu-card { background: var(--card-bg); padding: 20px; border-radius: 20px; width: 100%; max-width: 340px; }
+    .drink-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }
+    .opt-btn { padding: 12px; border: 1px solid #334155; background: #0f172a; color: white; border-radius: 10px; cursor: pointer; }
+    .opt-btn.active { border-color: #38bdf8; background: #1e293b; }
+    #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 999; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>HydroTracker</h1>
+  </header>
+
+  <div class="stats">
+    <div class="stat-box"><div class="stat-val" id="total-val">0 ml</div><div class="stat-lbl">Dnes vypité</div></div>
+    <div class="stat-box"><div class="stat-val" id="target-val">2000 ml</div><div class="stat-lbl">Cieľ fľaše</div></div>
+    <div class="stat-box"><div class="stat-val" id="bottles-val">0</div><div class="stat-lbl">Fľaše dnes</div></div>
+  </div>
+
+  <div class="bottle-wrapper">
+    <div class="cap"></div>
+    <div class="bottle">
+      <div class="liquid-container" id="liquid"></div>
+    </div>
+    <div class="marks">
+      <span>2.0L</span><span>1.5L</span><span>1.0L</span><span>0.5L</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="main-btn" id="add-btn">
+      +200ml Voda
+      <div style="font-size: 0.75rem; font-weight: normal; opacity: 0.8;">(Podrž pre výber nápoja / Vol Button)</div>
+    </button>
+  </div>
+
+  <!-- Modal Menu -->
+  <div class="menu" id="menu">
+    <div class="menu-card">
+      <h3>Vyber nápoj a objem</h3>
+      <div class="drink-opts" id="drink-selector">
+        <button class="opt-btn active" data-color="#38bdf8" data-name="Voda">💧 Voda</button>
+        <button class="opt-btn" data-color="#78350f" data-name="Káva">☕ Káva</button>
+        <button class="opt-btn" data-color="#111827" data-name="Cola">🥤 Cola</button>
+        <button class="opt-btn" data-color="#f97316" data-name="Džús">🍊 Džús</button>
+      </div>
+      <div class="drink-opts" id="amount-selector">
+        <button class="opt-btn" data-amount="100">100 ml</button>
+        <button class="opt-btn active" data-amount="200">200 ml</button>
+        <button class="opt-btn" data-amount="300">300 ml</button>
+        <button class="opt-btn" data-amount="500">500 ml</button>
+      </div>
+      <button class="main-btn" onclick="closeMenu()">Potvrdiť</button>
+    </div>
+  </div>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <script>
+    let capacity = 2000;
+    let currentTotal = 0;
+    let bottlesCount = 0;
+    let selectedDrink = { name: 'Voda', color: '#38bdf8' };
+    let selectedAmount = 200;
+    let pressTimer;
+
+    const liquid = document.getElementById('liquid');
+    const totalVal = document.getElementById('total-val');
+    const bottlesVal = document.getElementById('bottles-val');
+    const addBtn = document.getElementById('add-btn');
+    const menu = document.getElementById('menu');
+
+    function addDrink(amount, color, name) {
+      if (currentTotal + amount >= capacity) {
+        let fitAmount = capacity - currentTotal;
+        createLayer(fitAmount, color);
+        currentTotal = capacity;
+        updateUI();
+        triggerConfetti();
+        setTimeout(resetBottle, 2500);
+      } else {
+        currentTotal += amount;
+        createLayer(amount, color);
+        updateUI();
+      }
+    }
+
+    function createLayer(amount, color) {
+      const pct = (amount / capacity) * 100;
+      const layer = document.createElement('div');
+      layer.className = 'liquid-layer';
+      layer.style.height = pct + '%';
+      layer.style.background = color;
+      liquid.appendChild(layer);
+    }
+
+    function updateUI() {
+      totalVal.textContent = currentTotal + ' ml';
+      bottlesVal.textContent = bottlesCount;
+      const pct = (currentTotal / capacity) * 100;
+      liquid.style.height = pct + '%';
+    }
+
+    function resetBottle() {
+      liquid.innerHTML = '';
+      currentTotal = 0;
+      bottlesCount++;
+      updateUI();
+    }
+
+    // Long press & Click events
+    addBtn.addEventListener('pointerdown', () => {
+      pressTimer = setTimeout(() => { menu.classList.add('open'); }, 500);
+    });
+    addBtn.addEventListener('pointerup', () => {
+      clearTimeout(pressTimer);
+    });
+    addBtn.addEventListener('click', (e) => {
+      if (!menu.classList.contains('open')) {
+        addDrink(selectedAmount, selectedDrink.color, selectedDrink.name);
+      }
+    });
+
+    // Hardware Volume key listener
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'AudioVolumeUp' || e.key === 'AudioVolumeDown' || e.code === 'Space') {
+        e.preventDefault();
+        addDrink(selectedAmount, selectedDrink.color, selectedDrink.name);
+      }
+    });
+
+    function closeMenu() { menu.classList.remove('open'); }
+
+    // Menu selections
+    document.querySelectorAll('#drink-selector .opt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('#drink-selector .opt-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDrink = { name: btn.dataset.name, color: btn.dataset.color };
+        addBtn.childNodes[0].textContent = `+${selectedAmount}ml ${selectedDrink.name} `;
+      });
+    });
+
+    document.querySelectorAll('#amount-selector .opt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('#amount-selector .opt-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedAmount = parseInt(btn.dataset.amount);
+        addBtn.childNodes[0].textContent = `+${selectedAmount}ml ${selectedDrink.name} `;
+      });
+    });
+
+    // Simple Confetti effect
+    function triggerConfetti() {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      let particles = Array.from({length: 80}, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height - canvas.height,
+        color: ['#f59e0b', '#10b981', '#3b82f6', '#ec4899'][Math.floor(Math.random()*4)],
+        size: Math.random() * 8 + 4,
+        speed: Math.random() * 5 + 3
+      }));
+
+      let anim = setInterval(() => {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        particles.forEach(p => {
+          p.y += p.speed;
+          ctx.fillStyle = p.color;
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+        });
+      }, 20);
+
+      setTimeout(() => { clearInterval(anim); ctx.clearRect(0,0,canvas.width,canvas.height); }, 2500);
+    }
+  </script>
+</body>
+</html>
